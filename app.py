@@ -18,7 +18,7 @@ CORS(app)
 # Models & Inference API
 # ──────────────────────────────────────────────
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
-ZEPHYR_MODEL = "HuggingFaceH4/zephyr-7b-beta"
+ZEPHYR_MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
 FLORENCE_MODEL = "microsoft/Florence-2-base"
 
 hf_client = InferenceClient(token=HF_TOKEN if HF_TOKEN else None)
@@ -51,14 +51,12 @@ def describe_image(pil_image: Image.Image) -> str:
         pil_image.save(img_byte_arr, format='PNG')
         img_bytes = img_byte_arr.getvalue()
 
-        # Call Florence-2 API with a timeout
         response = hf_client.post(
             data=img_bytes,
             model=FLORENCE_MODEL,
             headers={"x-wait-for-model": "true"}
         )
         
-        # Parse result
         import json
         res = json.loads(response.decode('utf-8'))
         
