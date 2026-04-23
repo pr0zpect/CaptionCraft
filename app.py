@@ -16,33 +16,14 @@ CORS(app)
 # Florence-2 setup
 
 # ──────────────────────────────────────────────
-# Load Florence-2 once at startup
 # ──────────────────────────────────────────────
-FLORENCE_MODEL_ID = "microsoft/Florence-2-base"
-print(f"[startup] Loading {FLORENCE_MODEL_ID} …")
-
-device = "cpu"
-torch_dtype = torch.float32
-
-florence_processor = AutoProcessor.from_pretrained(
-    FLORENCE_MODEL_ID, trust_remote_code=True
-)
-florence_model = AutoModelForCausalLM.from_pretrained(
-    FLORENCE_MODEL_ID, 
-    trust_remote_code=True, 
-    torch_dtype=torch_dtype,
-    attn_implementation="eager"
-).to(device)
-
-print("[startup] Florence-2 ready ✓")
-
+# Models & Inference API
 # ──────────────────────────────────────────────
-# HF Inference client for Zephyr-7b
-# ──────────────────────────────────────────────
-HF_TOKEN = os.environ.get("HF_TOKEN", "")   # set via env or .env
-print(f"[startup] HF_TOKEN length: {len(HF_TOKEN)} (starts with: {HF_TOKEN[:5]}...)")
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
 ZEPHYR_MODEL = "HuggingFaceH4/zephyr-7b-beta"
-hf_client = InferenceClient(model=ZEPHYR_MODEL, token=HF_TOKEN if HF_TOKEN else None)
+FLORENCE_MODEL = "microsoft/Florence-2-base"
+
+hf_client = InferenceClient(token=HF_TOKEN if HF_TOKEN else None)
 
 # ──────────────────────────────────────────────
 # Prompts per platform / tone
@@ -66,37 +47,26 @@ TONE_HINTS = {
 
 
 def describe_image(pil_image: Image.Image) -> str:
-    """Run Florence-2 detailed caption on the image."""
-    task_prompt = "<MORE_DETAILED_CAPTION>"
-    # Process image with explicit float32 for CPU stability
-    inputs = florence_processor(
-        text=task_prompt, 
-        images=pil_image, 
-        return_tensors="pt"
-    )
-    
-    # Move to device and ensure float32 on CPU
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    if device == "cpu":
-        inputs = {k: v.float() if k == "pixel_values" else v for k, v in inputs.items()}
+    """Run Florence-2 via Inference API."""
+    try:
+        img_byte_arr = io.BytesIO()
+        pil_image.save(img_byte_arr, format='PNG')
+        img_bytes = img_byte_arr.getvalue()
 
-    with torch.no_grad():
-        generated_ids = florence_model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
-            max_new_tokens=256,
-            num_beams=3,
+        # Call Florence-2 API
+        result = hf_client.post(
+            data=img_bytes,
+            model=FLORENCE_MODEL
         )
-
-    generated_text = florence_processor.batch_decode(
-        generated_ids, skip_special_tokens=False
-    )[0]
-    parsed = florence_processor.post_process_generation(
-        generated_text,
-        task=task_prompt,
-        image_size=(pil_image.width, pil_image.height),
-    )
-    return parsed.get(task_prompt, generated_text)
+        
+        import json
+        res_data = json.loads(result.decode('utf-8'))
+        if isinstance(res_data, list) and len(res_data) > 0:
+            return res_data[0].get('generated_text', 'A detailed photo')
+        return "An uploaded image"
+    except Exception as e:
+        print(f"API Error: {e}")
+        return "A social media image"
 
 
 def generate_captions(description: str, platform: str, tone: str,
@@ -127,6 +97,7 @@ def generate_captions(description: str, platform: str, tone: str,
 
     response = hf_client.chat_completion(
         messages=messages,
+        model=ZEPHYR_MODEL,
         max_tokens=512,
         temperature=0.85,
         top_p=0.92,
