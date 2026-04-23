@@ -3,6 +3,9 @@ require('dotenv').config();
 
 const pool = new Pool({
   connectionString: process.env.NEON_DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Run this once to initialize tables
