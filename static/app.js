@@ -11,7 +11,9 @@ const state = {
   token: localStorage.getItem('token') || null
 };
 
-const BACKEND_URL = "https://tender-feet-share.loca.lt/api";
+const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  ? "http://localhost:5001/api"
+  : "https://tender-feet-share.loca.lt/api";
 
 // Elements
 const dropZone = document.getElementById("drop-zone");
