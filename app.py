@@ -13,11 +13,7 @@ from huggingface_hub import InferenceClient
 app = Flask(__name__, static_folder="static", static_url_path="")
 CORS(app)
 
-# ──────────────────────────────────────────────
-# Monkey-patch PreTrainedModel to fix Florence-2 compatibility
-# ──────────────────────────────────────────────
-if not hasattr(PreTrainedModel, '_supports_sdpa'):
-    PreTrainedModel._supports_sdpa = False
+# Florence-2 setup
 
 # ──────────────────────────────────────────────
 # Load Florence-2 once at startup
@@ -183,7 +179,13 @@ def api_generate():
             image_b64 = image_b64.split(",", 1)[1]
 
         img_bytes = base64.b64decode(image_b64)
-        pil_image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        pil_image = Image.open(io.BytesIO(img_bytes))
+        
+        # Force image to RGB and ensure it's not None
+        if pil_image is None:
+            return jsonify({"error": "Failed to decode image"}), 400
+        
+        pil_image = pil_image.convert("RGB")
 
         # Step 1 – Vision description
         description = describe_image(pil_image)
