@@ -141,6 +141,10 @@ document.getElementById("extra-input").addEventListener("input", function() {
 
 // API Call
 async function performGeneration() {
+  if (!state.token) {
+    showToast("Please login to generate captions");
+    return;
+  }
   generateBtn.disabled = true;
   regenerateBtn.disabled = true;
   genLabel.classList.add("hidden");
@@ -221,9 +225,7 @@ async function checkAuth() {
       updateUIForAuth(true);
     } catch(e) { updateUIForAuth(false); }
   } else {
-    // BYPASS FOR TESTING: Show app even if not logged in
-    authGate.classList.add("hidden");
-    appContent.classList.remove("hidden");
+    updateUIForAuth(false);
   }
 }
 
