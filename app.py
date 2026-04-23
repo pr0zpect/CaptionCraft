@@ -65,9 +65,17 @@ TONE_HINTS = {
 def describe_image(pil_image: Image.Image) -> str:
     """Run Florence-2 detailed caption on the image."""
     task_prompt = "<MORE_DETAILED_CAPTION>"
+    # Process image with explicit float32 for CPU stability
     inputs = florence_processor(
-        text=task_prompt, images=pil_image, return_tensors="pt"
-    ).to(device, dtype)
+        text=task_prompt, 
+        images=pil_image, 
+        return_tensors="pt"
+    )
+    
+    # Move to device and ensure float32 on CPU
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    if device == "cpu":
+        inputs = {k: v.float() if k == "pixel_values" else v for k, v in inputs.items()}
 
     with torch.no_grad():
         generated_ids = florence_model.generate(
